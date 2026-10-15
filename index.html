@@ -1,12 +1,129 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1115">
   <title>Pizza Prep</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0f1115;--card:#181b21;--border:#292e38;--text:#f3f4f6;--muted:#9aa1ad;--accent:#ffb454;--input:#111318}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent}
+    main{width:min(100% - 28px,480px);margin:0 auto;padding:24px 0 40px}
+    h1{font-size:28px;margin:0 0 6px;letter-spacing:-.5px}.subtitle{color:var(--muted);font-size:14px;margin-bottom:22px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px}
+    label{display:block;color:var(--muted);font-size:13px;margin-bottom:7px}
+    input{width:100%;height:48px;border:1px solid var(--border);border-radius:11px;background:var(--input);color:var(--text);font:inherit;font-size:17px;padding:0 13px;outline:none}
+    input:focus{border-color:var(--accent)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .total{margin-top:16px;padding:13px 14px;border-radius:11px;background:#20242c;display:flex;justify-content:space-between;align-items:center}
+    .total span{color:var(--muted);font-size:14px}.total strong{font-size:20px}
+    h2{font-size:18px;margin:0 0 14px}.section-label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:18px 0 8px}.section-label:first-child{margin-top:0}
+    .ingredient{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)}.ingredient:last-child{border-bottom:0;padding-bottom:0}.ingredient:first-child{padding-top:0}
+    .ingredient span:first-child{color:var(--muted)}.ingredient strong{font-size:17px}
+    .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:5px;margin-bottom:14px}
+    .modes button{height:40px;border:0;border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+    .modes button.active{background:var(--accent);color:#1a1206}
+    .note{margin-top:12px;padding:11px 13px;border-radius:11px;font-size:13.5px;line-height:1.45}
+    .note.warn{background:#3a1d1d;border:1px solid #6b2b2b;color:#ffb0b0}
+    .note.info{background:#1d2a3a;border:1px solid #2b456b;color:#a9c6ee}
+    .hidden{display:none}
+  </style>
 </head>
 <body>
+<main>
   <h1>Pizza Prep</h1>
-  <p>Public deployment is working.</p>
+  <div class="subtitle">Ingredient calculator</div>
+  <div class="modes">
+    <button id="mode-full" class="active">Full recipe</button>
+    <button id="mode-polish">What's left to add</button>
+    <button id="mode-hello">Hello</button>
+  </div>
+  <section class="card" id="card-full">
+    <div class="grid">
+      <div><label for="balls">Number of balls</label><input id="balls" type="number" inputmode="numeric" min="1" step="1" value="4"></div>
+      <div><label for="weight">Grams per ball</label><input id="weight" type="number" inputmode="decimal" min="1" step="0.1" value="250"></div>
+    </div>
+    <div class="total"><span>Target dough</span><strong id="total">1000 g</strong></div>
+  </section>
+  <section class="card hidden" id="card-polish">
+    <div class="grid">
+      <div><label for="have-water">Water already in (g)</label><input id="have-water" type="number" inputmode="decimal" min="0" step="1" value="0"></div>
+      <div><label for="have-flour">Flour already in (g)</label><input id="have-flour" type="number" inputmode="decimal" min="0" step="1" value="0"></div>
+    </div>
+    <div class="note info" style="margin:12px 0 0">Count everything already in the bowl: your polish (e.g. 220 g water + 220 g flour) plus any final water/flour you already added.</div>
+    <div class="grid" style="margin-top:12px">
+      <div><label for="balls2">Number of balls</label><input id="balls2" type="number" inputmode="numeric" min="1" step="1" value="4"></div>
+      <div><label for="weight2">Grams per ball</label><input id="weight2" type="number" inputmode="decimal" min="1" step="0.1" value="250"></div>
+    </div>
+    <div class="total"><span>Target dough</span><strong id="total2">1000 g</strong></div>
+    <div class="total" style="margin-top:8px"><span>Still to add</span><strong id="total-add">978 g</strong></div>
+  </section>
+  <section class="card hidden" id="card-hello"><h2>Hello!</h2><p style="margin:0;color:var(--muted);line-height:1.5">The new tab works. 👋</p></section>
+  <section class="card" id="card-ingredients"><h2 id="ing-title">Ingredients</h2><div id="ingredients"></div><div id="note"></div></section>
+</main>
+<script>
+const stages=[['Poolish water',250],['Poolish flour',250],['Final water',300],['Final flour',575],['Salt',25]];
+const base=stages.reduce((s,i)=>s+i[1],0); // 1400
+const balls=document.getElementById('balls'),weight=document.getElementById('weight'),total=document.getElementById('total'),ingredients=document.getElementById('ingredients');
+const balls2=document.getElementById('balls2'),weight2=document.getElementById('weight2'),haveWaterIn=document.getElementById('have-water'),haveFlourIn=document.getElementById('have-flour'),total2=document.getElementById('total2'),totalAdd=document.getElementById('total-add');
+const ingTitle=document.getElementById('ing-title'),note=document.getElementById('note');
+const cardFull=document.getElementById('card-full'),cardPolish=document.getElementById('card-polish'),cardHello=document.getElementById('card-hello'),cardIngredients=document.getElementById('card-ingredients');
+const modeFull=document.getElementById('mode-full'),modePolish=document.getElementById('mode-polish'),modeHello=document.getElementById('mode-hello');
+
+let mode='full';
+
+function fmt(n){return (Number.isInteger(n)?n:Math.round(n*10)/10)+' g'}
+function row(name,grams){return '<div class="ingredient"><span>'+name+'</span><strong>'+fmt(grams)+'</strong></div>'}
+function sectionLabel(text){return '<div class="section-label">'+text+'</div>'}
+
+function setMode(m){
+  mode=m;
+  modeFull.classList.toggle('active',m==='full');
+  modePolish.classList.toggle('active',m==='polish');
+  modeHello.classList.toggle('active',m==='hello');
+  cardFull.classList.toggle('hidden',m!=='full');
+  cardPolish.classList.toggle('hidden',m!=='polish');
+  cardHello.classList.toggle('hidden',m!=='hello');
+  cardIngredients.classList.toggle('hidden',m==='hello');
+  if(m!=='hello') calculate();
+}
+
+function calculateFull(){
+  const b=Math.max(1,Number(balls.value)||0),w=Math.max(0,Number(weight.value)||0),target=b*w;
+  const scale=target/base;
+  total.textContent=fmt(target);
+  ingTitle.textContent='Ingredients';
+  note.innerHTML='';
+  ingredients.innerHTML=sectionLabel('Poolish')+row('Poolish water',stages[0][1]*scale)+row('Poolish flour',stages[1][1]*scale)
+    +sectionLabel('Final dough')+row('Final water',stages[2][1]*scale)+row('Final flour',stages[3][1]*scale)+row('Salt',stages[4][1]*scale);
+}
+
+function calculatePolish(){
+  const haveWater=Math.max(0,Number(haveWaterIn.value)||0),haveFlour=Math.max(0,Number(haveFlourIn.value)||0),b=Math.max(1,Number(balls2.value)||0),w=Math.max(0,Number(weight2.value)||0),target=b*w;
+  const scale=target/base;
+  const waterTotal=550*scale,flourTotal=825*scale,salt=25*scale;
+  const addWater=waterTotal-haveWater,addFlour=flourTotal-haveFlour;
+  total2.textContent=fmt(target);
+  totalAdd.textContent=fmt(Math.max(0,target-haveWater-haveFlour));
+  ingTitle.textContent='To add';
+  ingredients.innerHTML=sectionLabel('Already in')+row('Water',haveWater)+row('Flour',haveFlour)
+    +sectionLabel('Add now')+row('Water',addWater)+row('Flour',addFlour)+row('Salt',salt)
+    +sectionLabel('Result')+row('Total dough',target);
+  if(addWater<0||addFlour<0){
+    note.innerHTML='<div class="note warn">You already have more water/flour than this target needs — reduce what you have, or increase balls / grams per ball.</div>';
+  }else{
+    note.innerHTML='';
+  }
+}
+
+function calculate(){mode==='full'?calculateFull():calculatePolish()}
+
+modeFull.addEventListener('click',()=>setMode('full'));
+modePolish.addEventListener('click',()=>setMode('polish'));
+modeHello.addEventListener('click',()=>setMode('hello'));
+[balls,weight,balls2,weight2,haveWaterIn,haveFlourIn].forEach(el=>el.addEventListener('input',calculate));
+calculate();
+</script>
 </body>
 </html>
